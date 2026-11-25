@@ -1,0 +1,14 @@
+provider = "gitlab"
+oidc_issuer_url = "https://gitlab.com"
+client_id = "69a108b9e2291f9ae21c8b5ae0ea975b6d251e712e2846353048ebaee25bab30"
+client_secret = "{{ gitlab_client_secret }}"
+cookie_secret = "{{ cookie_secret }}"
+redirect_url = "https://isopenkoandrii.pp.ua/oauth2/callback"
+http_address = "127.0.0.1:4180"
+email_domains = ["*"]
+upstreams = ["static://200"]
+scope = "openid profile email"
+reverse_proxy = true
+trusted_proxy_ips = ["127.0.0.1/32"]
+skip_provider_button = true
+cookie_secure = true

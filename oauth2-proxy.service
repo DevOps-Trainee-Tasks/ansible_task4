@@ -1,0 +1,10 @@
+[Unit]
+Description=OAuth2 Proxy
+After=network-online.target
+
+[Service]
+ExecStart=/opt/oauth2-proxy-v7.15.6.linux-amd64/oauth2-proxy --config=/etc/oauth2-proxy.cfg
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

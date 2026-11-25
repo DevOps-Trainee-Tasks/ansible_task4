@@ -1,0 +1,75 @@
+- name: Configure web server
+  hosts: web
+  become: true
+
+  vars_prompt:
+    - name: gitlab_client_secret
+      prompt: GitLab application secret
+      private: true
+    - name: cookie_secret
+      prompt: OAuth2 cookie secret
+      private: true
+
+  tasks:
+    - name: Install packages
+      ansible.builtin.dnf:
+        name: nginx
+
+    - name: Copy website
+      ansible.builtin.copy:
+        src: site/html5up-dimension/
+        dest: /usr/share/nginx/html/
+        mode: preserve
+
+    - name: Download OAuth2 Proxy
+      ansible.builtin.unarchive:
+        src: https://github.com/oauth2-proxy/oauth2-proxy/releases/download/v7.15.6/oauth2-proxy-v7.15.6.linux-amd64.tar.gz
+        dest: /opt
+        remote_src: true
+        creates: /opt/oauth2-proxy-v7.15.6.linux-amd64/oauth2-proxy
+
+    - name: Configure OAuth2 Proxy
+      ansible.builtin.template:
+        src: oauth2-proxy.cfg.j2
+        dest: /etc/oauth2-proxy.cfg
+        mode: "0600"
+      no_log: true
+      notify: Restart OAuth2 Proxy
+
+    - name: Install OAuth2 Proxy service
+      ansible.builtin.copy:
+        src: oauth2-proxy.service
+        dest: /etc/systemd/system/oauth2-proxy.service
+        mode: "0644"
+      notify: Restart OAuth2 Proxy
+
+    - name: Start OAuth2 Proxy
+      ansible.builtin.systemd_service:
+        name: oauth2-proxy
+        state: started
+        enabled: true
+        daemon_reload: true
+
+    - name: Configure Nginx
+      ansible.builtin.copy:
+        src: nginx.conf
+        dest: /etc/nginx/nginx.conf
+        mode: "0644"
+      notify: Reload Nginx
+
+    - name: Start Nginx
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: true
+
+  handlers:
+    - name: Restart OAuth2 Proxy
+      ansible.builtin.service:
+        name: oauth2-proxy
+        state: restarted
+
+    - name: Reload Nginx
+      ansible.builtin.service:
+        name: nginx
+        state: reloaded
