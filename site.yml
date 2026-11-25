@@ -14,12 +14,6 @@
     cookie_secret: "{{ secrets.cookie_secret }}"
 
   tasks:
-    - name: Copy website
-      ansible.builtin.copy:
-        src: site/html5up-dimension/
-        dest: /usr/share/nginx/html/
-        mode: preserve
-
     - name: Configure OAuth2 Proxy
       ansible.builtin.template:
         src: oauth2-proxy.cfg.j2
