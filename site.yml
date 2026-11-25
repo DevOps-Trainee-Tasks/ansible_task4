@@ -2,13 +2,16 @@
   hosts: web
   become: true
 
-  vars_prompt:
-    - name: gitlab_client_secret
-      prompt: GitLab application secret
-      private: true
-    - name: cookie_secret
-      prompt: OAuth2 cookie secret
-      private: true
+  vars:
+    secrets: >-
+      {{ lookup('ansible.builtin.pipe',
+      'aws secretsmanager get-secret-value
+      --secret-id task4/oauth2
+      --region us-east-1
+      --query SecretString
+      --output text') | from_json }}
+    gitlab_client_secret: "{{ secrets.gitlab_client_secret }}"
+    cookie_secret: "{{ secrets.cookie_secret }}"
 
   tasks:
     - name: Copy website
