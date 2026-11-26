@@ -140,11 +140,33 @@
           alias: gitlab
           providerId: gitlab
           enabled: true
+          trustEmail: true
           config:
             clientId: "{{ secrets.gitlab_client_id }}"
             clientSecret: "{{ secrets.gitlab_client_secret }}"
+            syncMode: FORCE
         status_code: 201
       when: gitlab_provider.status == 404
+      no_log: true
+
+    - name: Update GitLab provider
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8080/auth/admin/realms/task4/identity-provider/instances/gitlab
+        method: PUT
+        headers:
+          Authorization: "Bearer {{ keycloak_token.json.access_token }}"
+        body_format: json
+        body:
+          alias: gitlab
+          providerId: gitlab
+          enabled: true
+          trustEmail: true
+          config: "{{ gitlab_provider.json.config | combine({'clientId': secrets.gitlab_client_id, 'clientSecret': secrets.gitlab_client_secret, 'syncMode': 'FORCE'}) }}"
+        status_code: 204
+      when:
+        - gitlab_provider.status == 200
+        - not (gitlab_provider.json.trustEmail | default(false) | bool) or
+          (gitlab_provider.json.config.syncMode | default('')) != 'FORCE'
       no_log: true
 
     - name: Get browser flow
@@ -168,7 +190,7 @@
             defaultProvider: gitlab
         status_code: 201
       vars:
-        redirector: "{{ browser_flow.json | selectattr('providerId', 'equalto', 'identity-provider-redirector') | first }}"
+        redirector: "{{ browser_flow.json | selectattr('providerId', 'defined') | selectattr('providerId', 'equalto', 'identity-provider-redirector') | first }}"
       when: redirector.authenticationConfig | default('', true) == ''
       no_log: true
 
