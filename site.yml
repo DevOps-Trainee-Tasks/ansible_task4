@@ -19,15 +19,12 @@
         mode: "0600"
       no_log: true
       notify: Restart Keycloak
-      tags: keycloak_setup
 
     - name: Install Keycloak service
       ansible.builtin.copy:
         src: keycloak.service
         dest: /etc/systemd/system/keycloak.service
-        mode: "0644"
       notify: Restart Keycloak
-      tags: keycloak_setup
 
     - name: Start Keycloak
       ansible.builtin.systemd_service:
@@ -35,22 +32,93 @@
         state: started
         enabled: true
         daemon_reload: true
-      tags: keycloak_setup
 
     - name: Configure Nginx
       ansible.builtin.copy:
         src: nginx.conf
         dest: /etc/nginx/nginx.conf
-        mode: "0644"
       notify: Reload Nginx
-      tags: keycloak_setup
 
     - name: Start Nginx
       ansible.builtin.service:
         name: nginx
         state: started
         enabled: true
-      tags: keycloak_setup
+
+    - name: Apply Keycloak and Nginx changes
+      ansible.builtin.meta: flush_handlers
+
+    - name: Wait for Keycloak
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8080/auth/realms/master/.well-known/openid-configuration
+      register: keycloak_ready
+      until: keycloak_ready.status | default(0) == 200
+      retries: 30
+      delay: 2
+
+    - name: Get Keycloak admin token
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8080/auth/realms/master/protocol/openid-connect/token
+        method: POST
+        body_format: form-urlencoded
+        body:
+          grant_type: password
+          client_id: admin-cli
+          username: admin
+          password: "{{ secrets.keycloak_admin_password }}"
+      register: keycloak_token
+      no_log: true
+
+    - name: Check task4 realm
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8080/auth/admin/realms/task4
+        headers:
+          Authorization: "Bearer {{ keycloak_token.json.access_token }}"
+        status_code: [200, 404]
+      register: task4_realm
+      no_log: true
+
+    - name: Create task4 realm
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8080/auth/admin/realms
+        method: POST
+        headers:
+          Authorization: "Bearer {{ keycloak_token.json.access_token }}"
+        body_format: json
+        body:
+          realm: task4
+          enabled: true
+        status_code: 201
+      when: task4_realm.status == 404
+      no_log: true
+
+    - name: Check task4-web client
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8080/auth/admin/realms/task4/clients?clientId=task4-web
+        headers:
+          Authorization: "Bearer {{ keycloak_token.json.access_token }}"
+      register: task4_clients
+      no_log: true
+
+    - name: Create task4-web client
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8080/auth/admin/realms/task4/clients
+        method: POST
+        headers:
+          Authorization: "Bearer {{ keycloak_token.json.access_token }}"
+        body_format: json
+        body:
+          clientId: task4-web
+          enabled: true
+          protocol: openid-connect
+          publicClient: false
+          standardFlowEnabled: true
+          secret: "{{ secrets.keycloak_client_secret }}"
+          redirectUris:
+            - https://isopenkoandrii.pp.ua/oauth2/callback
+        status_code: 201
+      when: task4_clients.json | length == 0
+      no_log: true
 
     - name: Configure OAuth2 Proxy
       ansible.builtin.template:
@@ -64,7 +132,6 @@
       ansible.builtin.copy:
         src: oauth2-proxy.service
         dest: /etc/systemd/system/oauth2-proxy.service
-        mode: "0644"
       notify: Restart OAuth2 Proxy
 
     - name: Start OAuth2 Proxy
