@@ -1,0 +1,13 @@
+[Unit]
+Description=Keycloak
+Requires=docker.service
+After=docker.service
+
+[Service]
+ExecStartPre=-/usr/bin/docker rm -f keycloak
+ExecStart=/usr/bin/docker run --rm --name keycloak -p 127.0.0.1:8080:8080 --env-file /etc/keycloak.env -v /var/lib/keycloak:/opt/keycloak/data:Z quay.io/keycloak/keycloak:26.8.2 start-dev
+ExecStop=/usr/bin/docker stop keycloak
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

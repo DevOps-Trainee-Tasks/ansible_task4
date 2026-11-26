@@ -10,10 +10,48 @@
       --region us-east-1
       --query SecretString
       --output text') | from_json }}
-    gitlab_client_secret: "{{ secrets.gitlab_client_secret }}"
-    cookie_secret: "{{ secrets.cookie_secret }}"
 
   tasks:
+    - name: Configure Keycloak environment
+      ansible.builtin.template:
+        src: keycloak.env.j2
+        dest: /etc/keycloak.env
+        mode: "0600"
+      no_log: true
+      notify: Restart Keycloak
+      tags: keycloak_setup
+
+    - name: Install Keycloak service
+      ansible.builtin.copy:
+        src: keycloak.service
+        dest: /etc/systemd/system/keycloak.service
+        mode: "0644"
+      notify: Restart Keycloak
+      tags: keycloak_setup
+
+    - name: Start Keycloak
+      ansible.builtin.systemd_service:
+        name: keycloak
+        state: started
+        enabled: true
+        daemon_reload: true
+      tags: keycloak_setup
+
+    - name: Configure Nginx
+      ansible.builtin.copy:
+        src: nginx.conf
+        dest: /etc/nginx/nginx.conf
+        mode: "0644"
+      notify: Reload Nginx
+      tags: keycloak_setup
+
+    - name: Start Nginx
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: true
+      tags: keycloak_setup
+
     - name: Configure OAuth2 Proxy
       ansible.builtin.template:
         src: oauth2-proxy.cfg.j2
@@ -36,26 +74,18 @@
         enabled: true
         daemon_reload: true
 
-    - name: Configure Nginx
-      ansible.builtin.copy:
-        src: nginx.conf
-        dest: /etc/nginx/nginx.conf
-        mode: "0644"
-      notify: Reload Nginx
-
-    - name: Start Nginx
-      ansible.builtin.service:
-        name: nginx
-        state: started
-        enabled: true
-
   handlers:
-    - name: Restart OAuth2 Proxy
+    - name: Restart Keycloak
       ansible.builtin.service:
-        name: oauth2-proxy
+        name: keycloak
         state: restarted
 
     - name: Reload Nginx
       ansible.builtin.service:
         name: nginx
         state: reloaded
+
+    - name: Restart OAuth2 Proxy
+      ansible.builtin.service:
+        name: oauth2-proxy
+        state: restarted
