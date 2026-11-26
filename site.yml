@@ -120,6 +120,58 @@
       when: task4_clients.json | length == 0
       no_log: true
 
+    - name: Check GitLab provider
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8080/auth/admin/realms/task4/identity-provider/instances/gitlab
+        headers:
+          Authorization: "Bearer {{ keycloak_token.json.access_token }}"
+        status_code: [200, 404]
+      register: gitlab_provider
+      no_log: true
+
+    - name: Create GitLab provider
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8080/auth/admin/realms/task4/identity-provider/instances
+        method: POST
+        headers:
+          Authorization: "Bearer {{ keycloak_token.json.access_token }}"
+        body_format: json
+        body:
+          alias: gitlab
+          providerId: gitlab
+          enabled: true
+          config:
+            clientId: "{{ secrets.gitlab_client_id }}"
+            clientSecret: "{{ secrets.gitlab_client_secret }}"
+        status_code: 201
+      when: gitlab_provider.status == 404
+      no_log: true
+
+    - name: Get browser flow
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8080/auth/admin/realms/task4/authentication/flows/browser/executions
+        headers:
+          Authorization: "Bearer {{ keycloak_token.json.access_token }}"
+      register: browser_flow
+      no_log: true
+
+    - name: Set GitLab as default provider
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:8080/auth/admin/realms/task4/authentication/executions/{{ redirector.id }}/config"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ keycloak_token.json.access_token }}"
+        body_format: json
+        body:
+          alias: gitlab-default
+          config:
+            defaultProvider: gitlab
+        status_code: 201
+      vars:
+        redirector: "{{ browser_flow.json | selectattr('providerId', 'equalto', 'identity-provider-redirector') | first }}"
+      when: redirector.authenticationConfig | default('', true) == ''
+      no_log: true
+
     - name: Configure OAuth2 Proxy
       ansible.builtin.template:
         src: oauth2-proxy.cfg.j2
