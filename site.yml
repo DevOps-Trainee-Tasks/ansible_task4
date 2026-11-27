@@ -3,13 +3,7 @@
   become: true
 
   vars:
-    secrets: >-
-      {{ lookup('ansible.builtin.pipe',
-      'aws secretsmanager get-secret-value
-      --secret-id task4/oauth2
-      --region us-east-1
-      --query SecretString
-      --output text') | from_json }}
+    secrets: "{{ lookup('ansible.builtin.env', 'OAUTH2_SECRETS') | from_json }}"
 
   tasks:
     - name: Configure Keycloak environment
